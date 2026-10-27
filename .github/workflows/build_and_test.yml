@@ -1,0 +1,52 @@
+name: Build and test
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          path: visualization
+      - uses: actions/checkout@v4
+        with:
+          repository: kniazkov/astranaut-core
+          ref: 9c44504ab66ad5ad7b491f7b48dfe7d799bcf3d7
+          path: core
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - name: Install Graphviz
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends graphviz
+          dot -V
+      - name: Install matching core JAR before its release
+        working-directory: core
+        run: mvn -B -ntp -DskipTests clean install
+      - name: Build visualization and run all checks
+        working-directory: visualization
+        run: mvn -B -ntp clean verify
+      - name: Ensure the build did not modify tracked files
+        working-directory: visualization
+        run: git diff --exit-code
+      - name: Save reports and diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: verification-reports
+          path: |
+            visualization/target/surefire-reports/
+            visualization/target/site/jacoco/
+            visualization/target/checkstyle-result.xml
+            visualization/target/pmd.xml
+            visualization/target/duplicate-finder-result.xml
+          if-no-files-found: warn
